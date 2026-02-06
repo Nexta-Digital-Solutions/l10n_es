@@ -63,9 +63,9 @@ class SiiMixin(models.AbstractModel):
         readonly=True,
         copy=False,
         help="Indicates the account registration date set at the SII, which "
-        "must be the date when the document is recorded in the system and "
-        "is independent of the date of the accounting entry of the "
-        "document",
+             "must be the date when the document is recorded in the system and "
+             "is independent of the date of the accounting entry of the "
+             "document",
     )
     sii_registration_key_domain = fields.Char(
         compute="_compute_sii_registration_key_domain",
@@ -93,7 +93,7 @@ class SiiMixin(models.AbstractModel):
     sii_macrodata = fields.Boolean(
         string="MacroData",
         help="Check to confirm that the document has an absolute amount "
-        "greater o equal to 100 000 000,00 euros.",
+             "greater o equal to 100 000 000,00 euros.",
         compute="_compute_macrodata",
     )
     sii_send_date = fields.Datetime(string="SII Send Date", index=True, copy=False)
@@ -303,7 +303,7 @@ class SiiMixin(models.AbstractModel):
         if (
             self.company_id.filtered(
                 lambda company: company.send_mode == "auto"
-                or (company.send_mode == "delayed" and company.delay_time == 0.0)
+                                or (company.send_mode == "delayed" and company.delay_time == 0.0)
             )
             or send_date
         ):
@@ -369,8 +369,8 @@ class SiiMixin(models.AbstractModel):
                 (gen_type != 3 or country_code == "ES")
                 and not partner.vat
                 and not (
-                    partner.aeat_identification_type and partner.aeat_identification
-                )
+                partner.aeat_identification_type and partner.aeat_identification
+            )
                 and not is_simplified_invoice
             ):
                 raise UserError(self.env._("The partner has not a VAT configured."))
@@ -574,43 +574,48 @@ class SiiMixin(models.AbstractModel):
                     {default_no_taxable_cause: 0},
                 )
                 nsub_dict[default_no_taxable_cause] += tax_line["base"]
-            if tax in (taxes_sfess + taxes_sfesse + taxes_sfesns):
-                type_breakdown = taxes_dict.setdefault(
-                    "DesgloseTipoOperacion",
-                    {"PrestacionServicios": {}},
+            op_key = "PrestacionServicios"
+            # Si la factura tiene bienes (consu/product), el bloque correcto es "Entrega"
+            if any(
+                l.product_id and l.product_id.type in ("product", "consu")
+                for l in self.invoice_line_ids
+            ):
+                op_key = "Entrega"
+
+            type_breakdown = taxes_dict.setdefault(
+                "DesgloseTipoOperacion",
+                {op_key: {}},
+            )
+            if tax in (taxes_sfesse + taxes_sfess):
+                type_breakdown[op_key].setdefault("Sujeta", {})
+
+            service_dict = type_breakdown[op_key]
+
+            if tax in taxes_sfesse:
+                exempt_dict = service_dict["Sujeta"].setdefault(
+                    "Exenta",
+                    {"DetalleExenta": [{"BaseImponible": 0}]},
                 )
-                if tax in (taxes_sfesse + taxes_sfess):
-                    type_breakdown["PrestacionServicios"].setdefault("Sujeta", {})
-                service_dict = type_breakdown["PrestacionServicios"]
-                if tax in taxes_sfesse:
-                    exempt_dict = service_dict["Sujeta"].setdefault(
-                        "Exenta",
-                        {"DetalleExenta": [{"BaseImponible": 0}]},
-                    )
-                    det_dict = exempt_dict["DetalleExenta"][0]
-                    if exempt_cause:
-                        det_dict["CausaExencion"] = exempt_cause
-                    det_dict["BaseImponible"] += tax_line["base"]
-                if tax in taxes_sfess:
-                    # TODO l10n_es_ no tiene impuesto ISP de servicios
-                    # if tax in taxes_sfesisps:
-                    #     TipoNoExenta = 'S2'
-                    # else:
-                    service_dict["Sujeta"].setdefault(
-                        "NoExenta",
-                        {"TipoNoExenta": "S1", "DesgloseIVA": {"DetalleIVA": []}},
-                    )
-                    sub = type_breakdown["PrestacionServicios"]["Sujeta"]["NoExenta"][
-                        "DesgloseIVA"
-                    ]["DetalleIVA"]
-                    sub.append(self._get_sii_tax_dict(tax_line, tax_lines))
-                if tax in taxes_sfesns:
-                    default_no_taxable_cause = self._get_no_taxable_cause()
-                    nsub_dict = service_dict.setdefault(
-                        "NoSujeta",
-                        {default_no_taxable_cause: 0},
-                    )
-                    nsub_dict[default_no_taxable_cause] += tax_line["base"]
+                det_dict = exempt_dict["DetalleExenta"][0]
+                if exempt_cause:
+                    det_dict["CausaExencion"] = exempt_cause
+                det_dict["BaseImponible"] += tax_line["base"]
+
+            if tax in taxes_sfess:
+                service_dict["Sujeta"].setdefault(
+                    "NoExenta",
+                    {"TipoNoExenta": "S1", "DesgloseIVA": {"DetalleIVA": []}},
+                )
+                sub = type_breakdown[op_key]["Sujeta"]["NoExenta"]["DesgloseIVA"]["DetalleIVA"]
+                sub.append(self._get_sii_tax_dict(tax_line, tax_lines))
+
+            if tax in taxes_sfesns:
+                default_no_taxable_cause = self._get_no_taxable_cause()
+                nsub_dict = service_dict.setdefault(
+                    "NoSujeta",
+                    {default_no_taxable_cause: 0},
+                )
+                nsub_dict[default_no_taxable_cause] += tax_line["base"]
         # Ajustes finales breakdown
         # - DesgloseFactura y DesgloseTipoOperacion son excluyentes
         # - Ciertos condicionantes obligan DesgloseTipoOperacion
@@ -660,7 +665,7 @@ class SiiMixin(models.AbstractModel):
                         "IDType": identifier_type,
                         "ID": country_code + identifier
                         if self._aeat_get_partner()._map_aeat_country_code(country_code)
-                        in self._aeat_get_partner()._get_aeat_europe_codes()
+                           in self._aeat_get_partner()._get_aeat_europe_codes()
                         else identifier,
                     },
                 }
